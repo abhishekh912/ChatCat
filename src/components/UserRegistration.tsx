@@ -30,10 +30,21 @@ export function UserRegistration({ onRegister }: UserRegistrationProps) {
     setIsLoading(true);
 
     try {
-      const { data, error } = await supabase.auth.signUp({
+      // First try to sign in
+      let { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
+
+      if (error && error.status === 400) {
+        // If user doesn't exist, sign up
+        const signUpResult = await supabase.auth.signUp({
+          email,
+          password,
+        });
+        data = signUpResult.data;
+        error = signUpResult.error;
+      }
 
       if (error) throw error;
 
@@ -57,7 +68,7 @@ export function UserRegistration({ onRegister }: UserRegistrationProps) {
         <div className="text-center">
           <h2 className="text-3xl font-bold tracking-tight">Welcome to Chat</h2>
           <p className="mt-2 text-sm text-muted-foreground">
-            Create an account to join the conversation
+            Sign in or create an account to join the conversation
           </p>
         </div>
         <form onSubmit={handleSubmit} className="mt-8 space-y-4">
@@ -84,7 +95,7 @@ export function UserRegistration({ onRegister }: UserRegistrationProps) {
             className="text-lg"
           />
           <Button type="submit" className="w-full" size="lg" disabled={isLoading}>
-            {isLoading ? "Creating account..." : "Join Chat"}
+            {isLoading ? "Processing..." : "Continue"}
           </Button>
         </form>
       </div>
