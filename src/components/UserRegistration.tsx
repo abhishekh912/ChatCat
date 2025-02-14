@@ -3,16 +3,20 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 interface UserRegistrationProps {
-  onRegister: (username: string) => void;
+  onRegister: (username: string, userId: string) => void;
 }
 
 export function UserRegistration({ onRegister }: UserRegistrationProps) {
   const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (username.trim().length < 3) {
       toast({
@@ -22,7 +26,29 @@ export function UserRegistration({ onRegister }: UserRegistrationProps) {
       });
       return;
     }
-    onRegister(username.trim());
+
+    setIsLoading(true);
+
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+      });
+
+      if (error) throw error;
+
+      if (data.user) {
+        onRegister(username.trim(), data.user.id);
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "An error occurred",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -31,20 +57,34 @@ export function UserRegistration({ onRegister }: UserRegistrationProps) {
         <div className="text-center">
           <h2 className="text-3xl font-bold tracking-tight">Welcome to Chat</h2>
           <p className="mt-2 text-sm text-muted-foreground">
-            Enter your name to join the conversation
+            Create an account to join the conversation
           </p>
         </div>
         <form onSubmit={handleSubmit} className="mt-8 space-y-4">
           <Input
             type="text"
-            placeholder="Enter your name"
+            placeholder="Enter your username"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             className="text-lg"
             autoFocus
           />
-          <Button type="submit" className="w-full" size="lg">
-            Join Chat
+          <Input
+            type="email"
+            placeholder="Enter your email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="text-lg"
+          />
+          <Input
+            type="password"
+            placeholder="Choose a password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="text-lg"
+          />
+          <Button type="submit" className="w-full" size="lg" disabled={isLoading}>
+            {isLoading ? "Creating account..." : "Join Chat"}
           </Button>
         </form>
       </div>

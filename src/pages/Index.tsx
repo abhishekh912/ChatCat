@@ -3,19 +3,24 @@ import { useState } from "react";
 import { UserRegistration } from "@/components/UserRegistration";
 import { ChatRoom } from "@/components/ChatRoom";
 
-const Index = () => {
-  const [username, setUsername] = useState<string | null>(null);
+interface RegisteredUser {
+  username: string;
+  userId: string;
+}
 
-  const handleRegister = (name: string) => {
-    setUsername(name);
+const Index = () => {
+  const [user, setUser] = useState<RegisteredUser | null>(null);
+
+  const handleRegister = (username: string, userId: string) => {
+    setUser({ username, userId });
   };
 
   const handleLeave = () => {
-    setUsername(null);
+    setUser(null);
   };
 
-  return username ? (
-    <ChatRoom currentUser={username} onLeave={handleLeave} />
+  return user ? (
+    <ChatRoom currentUser={user.username} userId={user.userId} onLeave={handleLeave} />
   ) : (
     <UserRegistration onRegister={handleRegister} />
   );

@@ -6,6 +6,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { ChatMessage } from "./ChatMessage";
 import { UsersList } from "./UsersList";
 import { Send } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 interface User {
   id: string;
@@ -15,9 +17,9 @@ interface User {
 
 interface Message {
   id: string;
-  text: string;
+  content: string;
   username: string;
-  timestamp: Date;
+  created_at: string;
   reactions: {
     type: "like" | "heart";
     count: number;
@@ -26,60 +28,148 @@ interface Message {
 
 interface ChatRoomProps {
   currentUser: string;
+  userId: string;
   onLeave: () => void;
 }
 
-export function ChatRoom({ currentUser, onLeave }: ChatRoomProps) {
+export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
-  const [users] = useState<User[]>([
-    { id: "1", name: currentUser, online: true },
-    { id: "2", name: "Alice", online: true },
-    { id: "3", name: "Bob", online: false },
-  ]);
+  const [users, setUsers] = useState<User[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const { toast } = useToast();
+
+  // Fetch initial messages
+  useEffect(() => {
+    const fetchMessages = async () => {
+      const { data, error } = await supabase
+        .from("messages")
+        .select("*")
+        .order("created_at", { ascending: true });
+
+      if (error) {
+        toast({
+          title: "Error fetching messages",
+          description: error.message,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (data) {
+        setMessages(
+          data.map((msg) => ({
+            ...msg,
+            reactions: [],
+          }))
+        );
+      }
+    };
+
+    fetchMessages();
+  }, [toast]);
+
+  // Subscribe to new messages
+  useEffect(() => {
+    const channel = supabase
+      .channel("public:messages")
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "messages",
+        },
+        (payload) => {
+          const newMessage = payload.new as Message;
+          setMessages((prev) => [
+            ...prev,
+            { ...newMessage, reactions: [] },
+          ]);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  // Track user presence
+  useEffect(() => {
+    const channel = supabase.channel("online-users", {
+      config: {
+        presence: {
+          key: userId,
+        },
+      },
+    });
+
+    channel
+      .on("presence", { event: "sync" }, () => {
+        const state = channel.presenceState();
+        const onlineUsers = Object.keys(state).map((id) => ({
+          id,
+          name: (state[id][0] as { username: string }).username,
+          online: true,
+        }));
+        setUsers(onlineUsers);
+      })
+      .subscribe(async (status) => {
+        if (status === "SUBSCRIBED") {
+          await channel.track({
+            username: currentUser,
+          });
+        }
+      });
+
+    return () => {
+      channel.unsubscribe();
+    };
+  }, [currentUser, userId]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const handleSend = (e: React.FormEvent) => {
+  const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMessage.trim()) return;
 
-    const message: Message = {
-      id: Date.now().toString(),
-      text: newMessage.trim(),
+    const message = {
+      content: newMessage.trim(),
+      user_id: userId,
       username: currentUser,
-      timestamp: new Date(),
-      reactions: [],
     };
 
-    setMessages((prev) => [...prev, message]);
+    const { error } = await supabase.from("messages").insert(message);
+
+    if (error) {
+      toast({
+        title: "Error sending message",
+        description: error.message,
+        variant: "destructive",
+      });
+      return;
+    }
+
     setNewMessage("");
   };
 
-  const handleReact = (messageId: string, type: "like" | "heart") => {
-    setMessages((prev) =>
-      prev.map((msg) => {
-        if (msg.id === messageId) {
-          const existingReaction = msg.reactions.find((r) => r.type === type);
-          if (existingReaction) {
-            return {
-              ...msg,
-              reactions: msg.reactions.map((r) =>
-                r.type === type ? { ...r, count: r.count + 1 } : r
-              ),
-            };
-          }
-          return {
-            ...msg,
-            reactions: [...msg.reactions, { type, count: 1 }],
-          };
-        }
-        return msg;
-      })
-    );
+  const handleReact = async (messageId: string, type: "like" | "heart") => {
+    const { error } = await supabase.from("reactions").insert({
+      message_id: messageId,
+      user_id: userId,
+      type,
+    });
+
+    if (error) {
+      toast({
+        title: "Error adding reaction",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
   };
 
   return (
