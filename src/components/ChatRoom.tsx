@@ -42,70 +42,82 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
   const [users, setUsers] = useState<User[]>([]);
   const [showSidebar, setShowSidebar] = useState(false);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
   const isMobile = useIsMobile();
   const { theme, setTheme } = useTheme();
 
+  const fetchMessages = async () => {
+    let query = supabase
+      .from("messages")
+      .select("*")
+      .order("created_at", { ascending: true });
+
+    if (selectedUserId) {
+      query = query.or(`user_id.eq.${userId},user_id.eq.${selectedUserId}`);
+    }
+
+    const { data: messagesData, error: messagesError } = await query;
+
+    if (messagesError) {
+      toast({
+        title: "Error fetching messages",
+        description: messagesError.message,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const { data: reactionsData, error: reactionsError } = await supabase
+      .from("reactions")
+      .select("*");
+
+    if (reactionsError) {
+      toast({
+        title: "Error fetching reactions",
+        description: reactionsError.message,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (messagesData) {
+      const processedMessages = messagesData.map((msg) => {
+        const messageReactions = reactionsData?.filter(r => r.message_id === msg.id) || [];
+        const reactionCounts = messageReactions.reduce((acc, reaction) => {
+          const type = reaction.type as "like" | "heart";
+          acc[type] = (acc[type] || 0) + 1;
+          return acc;
+        }, {} as Record<"like" | "heart", number>);
+
+        return {
+          ...msg,
+          text: msg.content,
+          timestamp: new Date(msg.created_at),
+          reactions: [
+            ...(reactionCounts.like ? [{ type: "like" as const, count: reactionCounts.like }] : []),
+            ...(reactionCounts.heart ? [{ type: "heart" as const, count: reactionCounts.heart }] : [])
+          ],
+        };
+      });
+
+      const filteredMessages = selectedUserId
+        ? processedMessages.filter(
+            msg => msg.user_id === userId || msg.user_id === selectedUserId
+          )
+        : processedMessages;
+
+      setMessages(filteredMessages);
+    }
+  };
+
   useEffect(() => {
-    const fetchMessages = async () => {
-      const { data: messagesData, error: messagesError } = await supabase
-        .from("messages")
-        .select("*")
-        .order("created_at", { ascending: true });
-
-      if (messagesError) {
-        toast({
-          title: "Error fetching messages",
-          description: messagesError.message,
-          variant: "destructive",
-        });
-        return;
-      }
-
-      const { data: reactionsData, error: reactionsError } = await supabase
-        .from("reactions")
-        .select("*");
-
-      if (reactionsError) {
-        toast({
-          title: "Error fetching reactions",
-          description: reactionsError.message,
-          variant: "destructive",
-        });
-        return;
-      }
-
-      if (messagesData) {
-        const processedMessages = messagesData.map((msg) => {
-          const messageReactions = reactionsData?.filter(r => r.message_id === msg.id) || [];
-          const reactionCounts = messageReactions.reduce((acc, reaction) => {
-            const type = reaction.type as "like" | "heart";
-            acc[type] = (acc[type] || 0) + 1;
-            return acc;
-          }, {} as Record<"like" | "heart", number>);
-
-          return {
-            ...msg,
-            text: msg.content,
-            timestamp: new Date(msg.created_at),
-            reactions: [
-              ...(reactionCounts.like ? [{ type: "like" as const, count: reactionCounts.like }] : []),
-              ...(reactionCounts.heart ? [{ type: "heart" as const, count: reactionCounts.heart }] : [])
-            ],
-          };
-        });
-
-        setMessages(processedMessages);
-      }
-    };
-
     fetchMessages();
-  }, [toast]);
+  }, [selectedUserId]);
 
   useEffect(() => {
-    const channel = supabase
-      .channel("public:messages")
+    const channel = supabase.channel("public:messages")
       .on(
         "postgres_changes",
         {
@@ -183,8 +195,7 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
         if (status === "SUBSCRIBED") {
           await channel.track({
             username: currentUser,
-            presence_ref: channel.presenceRef() // Add this line
-          } as any); // Use type assertion to fix the TypeScript error
+          });
         }
       });
 
@@ -324,10 +335,24 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
             : "w-64 border-r border-border"
         } bg-background p-4`}
       >
-        <UsersList users={users} currentUser={currentUser} onLeave={onLeave} />
+        <UsersList 
+          users={users} 
+          currentUser={currentUser} 
+          onLeave={onLeave}
+          onUserSelect={setSelectedUserId}
+          selectedUserId={selectedUserId}
+        />
       </aside>
 
       <main className="flex-1 flex flex-col">
+        <div className="p-4 border-b border-border">
+          <h2 className="text-lg font-semibold">
+            {selectedUserId 
+              ? `Chat with ${users.find(u => u.id === selectedUserId)?.name}`
+              : "All Messages"
+            }
+          </h2>
+        </div>
         <ScrollArea className="flex-1 p-4">
           <div className="space-y-4">
             {messages.map((message) => (
@@ -364,7 +389,13 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
               onKeyPress={handleKeyPress}
-              placeholder={replyingTo ? `Reply to ${replyingTo.username}...` : "Type a message..."}
+              placeholder={
+                selectedUserId
+                  ? `Message ${users.find(u => u.id === selectedUserId)?.name}...`
+                  : replyingTo
+                  ? `Reply to ${replyingTo.username}...`
+                  : "Type a message..."
+              }
               className="flex-1"
             />
             <Button type="submit" size="icon">
