@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, KeyboardEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -113,16 +113,27 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
           schema: "public",
           table: "messages",
         },
-        (payload) => {
+        async (payload) => {
           if (payload.eventType === "INSERT") {
-            const newMsg = payload.new as any;
+            const { data: messageData, error } = await supabase
+              .from("messages")
+              .select("*")
+              .eq("id", payload.new.id)
+              .single();
+
+            if (error) {
+              console.error("Error fetching new message:", error);
+              return;
+            }
+
             const newMessage: Message = {
-              ...newMsg,
-              text: newMsg.content,
-              timestamp: new Date(newMsg.created_at),
+              ...messageData,
+              text: messageData.content,
+              timestamp: new Date(messageData.created_at),
               reactions: [],
             };
             setMessages((prev) => [...prev, newMessage]);
+            bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
           }
         }
       )
@@ -170,7 +181,10 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
       })
       .subscribe(async (status) => {
         if (status === "SUBSCRIBED") {
-          await channel.track({ username: currentUser });
+          await channel.track({
+            username: currentUser,
+            presence_ref: channel.presenceRef() // Add this line
+          } as any); // Use type assertion to fix the TypeScript error
         }
       });
 
@@ -179,55 +193,10 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
     };
   }, [currentUser, userId]);
 
-  const fetchMessages = async () => {
-    const { data: messagesData, error: messagesError } = await supabase
-      .from("messages")
-      .select("*")
-      .order("created_at", { ascending: true });
-
-    if (messagesError) {
-      toast({
-        title: "Error fetching messages",
-        description: messagesError.message,
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const { data: reactionsData, error: reactionsError } = await supabase
-      .from("reactions")
-      .select("*");
-
-    if (reactionsError) {
-      toast({
-        title: "Error fetching reactions",
-        description: reactionsError.message,
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (messagesData) {
-      const processedMessages = messagesData.map((msg) => {
-        const messageReactions = reactionsData?.filter(r => r.message_id === msg.id) || [];
-        const reactionCounts = messageReactions.reduce((acc, reaction) => {
-          const type = reaction.type as "like" | "heart";
-          acc[type] = (acc[type] || 0) + 1;
-          return acc;
-        }, {} as Record<"like" | "heart", number>);
-
-        return {
-          ...msg,
-          text: msg.content,
-          timestamp: new Date(msg.created_at),
-          reactions: [
-            ...(reactionCounts.like ? [{ type: "like" as const, count: reactionCounts.like }] : []),
-            ...(reactionCounts.heart ? [{ type: "heart" as const, count: reactionCounts.heart }] : [])
-          ],
-        };
-      });
-
-      setMessages(processedMessages);
+  const handleKeyPress = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSend(e as any);
     }
   };
 
@@ -368,7 +337,7 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
                 isCurrentUser={message.username === currentUser}
                 onReact={handleReact}
                 onReply={handleReply}
-                replyingTo={message.reply_to ? messages.find(m => m.id === message.reply_to) : undefined}
+                replyingTo={messages.find(m => m.id === message.reply_to)}
               />
             ))}
             <div ref={bottomRef} />
@@ -394,6 +363,7 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
             <Input
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
+              onKeyPress={handleKeyPress}
               placeholder={replyingTo ? `Reply to ${replyingTo.username}...` : "Type a message..."}
               className="flex-1"
             />
