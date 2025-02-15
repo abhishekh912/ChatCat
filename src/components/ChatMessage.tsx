@@ -5,8 +5,9 @@ import { cn } from "@/lib/utils";
 
 interface Message {
   id: string;
-  text: string;
+  content: string;
   username: string;
+  text: string;
   timestamp: Date;
   reactions: {
     type: "like" | "heart";
@@ -49,7 +50,7 @@ export function ChatMessage({ message, isCurrentUser, onReact }: ChatMessageProp
               : "bg-chat-otherBg text-primary rounded-tl-none"
           )}
         >
-          <p className="text-sm">{message.text}</p>
+          <p className="text-sm">{message.content}</p>
         </div>
         <div className="flex gap-1 h-6">
           {(isHovered || message.reactions.length > 0) && (

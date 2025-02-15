@@ -5,9 +5,10 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ChatMessage } from "./ChatMessage";
 import { UsersList } from "./UsersList";
-import { Send } from "lucide-react";
+import { Send, Menu } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface User {
   id: string;
@@ -20,6 +21,8 @@ interface Message {
   content: string;
   username: string;
   created_at: string;
+  text: string;
+  timestamp: Date;
   reactions: {
     type: "like" | "heart";
     count: number;
@@ -36,8 +39,10 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [users, setUsers] = useState<User[]>([]);
+  const [showSidebar, setShowSidebar] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
+  const isMobile = useIsMobile();
 
   // Fetch initial messages
   useEffect(() => {
@@ -60,6 +65,8 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
         setMessages(
           data.map((msg) => ({
             ...msg,
+            text: msg.content,
+            timestamp: new Date(msg.created_at),
             reactions: [],
           }))
         );
@@ -81,11 +88,14 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
           table: "messages",
         },
         (payload) => {
-          const newMessage = payload.new as Message;
-          setMessages((prev) => [
-            ...prev,
-            { ...newMessage, reactions: [] },
-          ]);
+          const newMsg = payload.new as any;
+          const newMessage: Message = {
+            ...newMsg,
+            text: newMsg.content,
+            timestamp: new Date(newMsg.created_at),
+            reactions: [],
+          };
+          setMessages((prev) => [...prev, newMessage]);
         }
       )
       .subscribe();
@@ -117,9 +127,7 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
       })
       .subscribe(async (status) => {
         if (status === "SUBSCRIBED") {
-          await channel.track({
-            username: currentUser,
-          });
+          await channel.track({ username: currentUser } as any);
         }
       });
 
@@ -172,11 +180,38 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
     }
   };
 
+  const toggleSidebar = () => {
+    setShowSidebar(!showSidebar);
+  };
+
   return (
     <div className="flex h-screen bg-background">
-      <aside className="w-64 border-r border-border p-4 hidden md:block">
+      {/* Mobile menu button */}
+      {isMobile && (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="fixed top-4 left-4 z-50"
+          onClick={toggleSidebar}
+        >
+          <Menu className="h-6 w-6" />
+        </Button>
+      )}
+
+      {/* Sidebar */}
+      <aside
+        className={`${
+          isMobile
+            ? `fixed inset-y-0 left-0 z-40 w-64 transform transition-transform duration-200 ease-in-out ${
+                showSidebar ? "translate-x-0" : "-translate-x-full"
+              }`
+            : "w-64 border-r border-border"
+        } bg-background p-4`}
+      >
         <UsersList users={users} currentUser={currentUser} onLeave={onLeave} />
       </aside>
+
+      {/* Main content */}
       <main className="flex-1 flex flex-col">
         <ScrollArea className="flex-1 p-4">
           <div className="space-y-4">
@@ -206,6 +241,14 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
           </Button>
         </form>
       </main>
+
+      {/* Mobile overlay */}
+      {isMobile && showSidebar && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 z-30"
+          onClick={toggleSidebar}
+        />
+      )}
     </div>
   );
 }
