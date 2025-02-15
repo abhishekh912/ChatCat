@@ -1,7 +1,9 @@
 
 import { useState } from "react";
-import { Heart, ThumbsUp } from "lucide-react";
+import { Heart, ThumbsUp, Reply, Moon, Sun } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "./ui/button";
+import { useTheme } from "next-themes";
 
 interface Message {
   id: string;
@@ -9,6 +11,7 @@ interface Message {
   username: string;
   text: string;
   timestamp: Date;
+  reply_to?: string;
   reactions: {
     type: "like" | "heart";
     count: number;
@@ -19,9 +22,17 @@ interface ChatMessageProps {
   message: Message;
   isCurrentUser: boolean;
   onReact: (messageId: string, type: "like" | "heart") => void;
+  onReply: (messageId: string) => void;
+  replyingTo?: Message;
 }
 
-export function ChatMessage({ message, isCurrentUser, onReact }: ChatMessageProps) {
+export function ChatMessage({ 
+  message, 
+  isCurrentUser, 
+  onReact, 
+  onReply,
+  replyingTo 
+}: ChatMessageProps) {
   const [isHovered, setIsHovered] = useState(false);
 
   return (
@@ -46,10 +57,16 @@ export function ChatMessage({ message, isCurrentUser, onReact }: ChatMessageProp
           className={cn(
             "rounded-lg px-4 py-2 shadow-sm",
             isCurrentUser
-              ? "bg-chat-userBg text-primary rounded-tr-none"
-              : "bg-chat-otherBg text-primary rounded-tl-none"
+              ? "bg-primary text-primary-foreground rounded-tr-none"
+              : "bg-muted text-muted-foreground rounded-tl-none"
           )}
         >
+          {replyingTo && (
+            <div className="text-xs border-l-2 border-primary/20 pl-2 mb-2 opacity-80">
+              Replying to {replyingTo.username}: {replyingTo.content.substring(0, 50)}
+              {replyingTo.content.length > 50 && "..."}
+            </div>
+          )}
           <p className="text-sm">{message.content}</p>
         </div>
         <div className="flex gap-1 h-6">
@@ -66,6 +83,12 @@ export function ChatMessage({ message, isCurrentUser, onReact }: ChatMessageProp
                 className="text-muted-foreground hover:text-primary transition-colors"
               >
                 <Heart className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => onReply(message.id)}
+                className="text-muted-foreground hover:text-primary transition-colors"
+              >
+                <Reply className="w-4 h-4" />
               </button>
             </div>
           )}

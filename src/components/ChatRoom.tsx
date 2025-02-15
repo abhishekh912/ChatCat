@@ -1,14 +1,14 @@
-
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ChatMessage } from "./ChatMessage";
 import { UsersList } from "./UsersList";
-import { Send, Menu } from "lucide-react";
+import { Send, Menu, Moon, Sun } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useTheme } from "next-themes";
 
 interface User {
   id: string;
@@ -40,11 +40,12 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
   const [newMessage, setNewMessage] = useState("");
   const [users, setUsers] = useState<User[]>([]);
   const [showSidebar, setShowSidebar] = useState(false);
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
   const isMobile = useIsMobile();
+  const { theme, setTheme } = useTheme();
 
-  // Fetch initial messages
   useEffect(() => {
     const fetchMessages = async () => {
       const { data, error } = await supabase
@@ -76,7 +77,6 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
     fetchMessages();
   }, [toast]);
 
-  // Subscribe to new messages
   useEffect(() => {
     const channel = supabase
       .channel("public:messages")
@@ -105,7 +105,6 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
     };
   }, []);
 
-  // Track user presence
   useEffect(() => {
     const channel = supabase.channel("online-users", {
       config: {
@@ -148,6 +147,7 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
       content: newMessage.trim(),
       user_id: userId,
       username: currentUser,
+      reply_to: replyingTo?.id,
     };
 
     const { error } = await supabase.from("messages").insert(message);
@@ -162,6 +162,7 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
     }
 
     setNewMessage("");
+    setReplyingTo(null);
   };
 
   const handleReact = async (messageId: string, type: "like" | "heart") => {
@@ -171,12 +172,32 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
       type,
     });
 
-    if (error) {
+    if (error && error.code === '23505') {
+      const { error: deleteError } = await supabase
+        .from("reactions")
+        .delete()
+        .match({ message_id: messageId, user_id: userId, type });
+
+      if (deleteError) {
+        toast({
+          title: "Error removing reaction",
+          description: deleteError.message,
+          variant: "destructive",
+        });
+      }
+    } else if (error) {
       toast({
         title: "Error adding reaction",
         description: error.message,
         variant: "destructive",
       });
+    }
+  };
+
+  const handleReply = (messageId: string) => {
+    const messageToReply = messages.find(m => m.id === messageId);
+    if (messageToReply) {
+      setReplyingTo(messageToReply);
     }
   };
 
@@ -186,19 +207,29 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
 
   return (
     <div className="flex h-screen bg-background">
-      {/* Mobile menu button */}
-      {isMobile && (
+      <div className="fixed top-4 left-4 z-50 flex gap-2">
+        {isMobile && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={toggleSidebar}
+          >
+            <Menu className="h-6 w-6" />
+          </Button>
+        )}
         <Button
           variant="ghost"
           size="icon"
-          className="fixed top-4 left-4 z-50"
-          onClick={toggleSidebar}
+          onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
         >
-          <Menu className="h-6 w-6" />
+          {theme === "dark" ? (
+            <Sun className="h-6 w-6" />
+          ) : (
+            <Moon className="h-6 w-6" />
+          )}
         </Button>
-      )}
+      </div>
 
-      {/* Sidebar */}
       <aside
         className={`${
           isMobile
@@ -211,7 +242,6 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
         <UsersList users={users} currentUser={currentUser} onLeave={onLeave} />
       </aside>
 
-      {/* Main content */}
       <main className="flex-1 flex flex-col">
         <ScrollArea className="flex-1 p-4">
           <div className="space-y-4">
@@ -221,6 +251,8 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
                 message={message}
                 isCurrentUser={message.username === currentUser}
                 onReact={handleReact}
+                onReply={handleReply}
+                replyingTo={message.reply_to ? messages.find(m => m.id === message.reply_to) : undefined}
               />
             ))}
             <div ref={bottomRef} />
@@ -228,21 +260,34 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
         </ScrollArea>
         <form
           onSubmit={handleSend}
-          className="border-t border-border p-4 flex gap-2"
+          className="border-t border-border p-4 flex flex-col gap-2"
         >
-          <Input
-            value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            placeholder="Type a message..."
-            className="flex-1"
-          />
-          <Button type="submit" size="icon">
-            <Send className="h-4 w-4" />
-          </Button>
+          {replyingTo && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <span>Replying to {replyingTo.username}</span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setReplyingTo(null)}
+              >
+                Cancel
+              </Button>
+            </div>
+          )}
+          <div className="flex gap-2">
+            <Input
+              value={newMessage}
+              onChange={(e) => setNewMessage(e.target.value)}
+              placeholder={replyingTo ? `Reply to ${replyingTo.username}...` : "Type a message..."}
+              className="flex-1"
+            />
+            <Button type="submit" size="icon">
+              <Send className="h-4 w-4" />
+            </Button>
+          </div>
         </form>
       </main>
 
-      {/* Mobile overlay */}
       {isMobile && showSidebar && (
         <div
           className="fixed inset-0 bg-black bg-opacity-50 z-30"

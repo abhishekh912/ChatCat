@@ -14,6 +14,7 @@ export type Database = {
           content: string
           created_at: string | null
           id: string
+          reply_to: string | null
           updated_at: string | null
           user_id: string
           username: string
@@ -22,6 +23,7 @@ export type Database = {
           content: string
           created_at?: string | null
           id?: string
+          reply_to?: string | null
           updated_at?: string | null
           user_id: string
           username: string
@@ -30,11 +32,20 @@ export type Database = {
           content?: string
           created_at?: string | null
           id?: string
+          reply_to?: string | null
           updated_at?: string | null
           user_id?: string
           username?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "messages_reply_to_fkey"
+            columns: ["reply_to"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       reactions: {
         Row: {
