@@ -1,4 +1,3 @@
-
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -64,7 +63,6 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
         return;
       }
 
-      // Fetch reactions for all messages
       const { data: reactionsData, error: reactionsError } = await supabase
         .from("reactions")
         .select("*");
@@ -140,7 +138,6 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
           table: "reactions",
         },
         () => {
-          // Refresh messages to get updated reaction counts
           fetchMessages();
         }
       )
@@ -261,14 +258,22 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
   };
 
   const handleReact = async (messageId: string, type: "like" | "heart") => {
-    const { error } = await supabase.from("reactions").insert({
-      message_id: messageId,
-      user_id: userId,
-      type,
-    });
+    const { data: existingReaction, error: fetchError } = await supabase
+      .from("reactions")
+      .select("*")
+      .match({ message_id: messageId, user_id: userId, type })
+      .single();
 
-    if (error && error.code === '23505') {
-      // If reaction already exists, remove it
+    if (fetchError && fetchError.code !== "PGRST116") {
+      toast({
+        title: "Error checking reaction",
+        description: fetchError.message,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (existingReaction) {
       const { error: deleteError } = await supabase
         .from("reactions")
         .delete()
@@ -281,13 +286,25 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
           variant: "destructive",
         });
       }
-    } else if (error) {
-      toast({
-        title: "Error adding reaction",
-        description: error.message,
-        variant: "destructive",
-      });
+    } else {
+      const { error: insertError } = await supabase
+        .from("reactions")
+        .insert({
+          message_id: messageId,
+          user_id: userId,
+          type,
+        });
+
+      if (insertError) {
+        toast({
+          title: "Error adding reaction",
+          description: insertError.message,
+          variant: "destructive",
+        });
+      }
     }
+
+    fetchMessages();
   };
 
   const handleReply = (messageId: string) => {
