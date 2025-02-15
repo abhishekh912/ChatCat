@@ -1,3 +1,4 @@
+
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,6 +24,7 @@ interface Message {
   created_at: string;
   text: string;
   timestamp: Date;
+  reply_to?: string;
   reactions: {
     type: "like" | "heart";
     count: number;
@@ -48,29 +50,55 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
 
   useEffect(() => {
     const fetchMessages = async () => {
-      const { data, error } = await supabase
+      const { data: messagesData, error: messagesError } = await supabase
         .from("messages")
         .select("*")
         .order("created_at", { ascending: true });
 
-      if (error) {
+      if (messagesError) {
         toast({
           title: "Error fetching messages",
-          description: error.message,
+          description: messagesError.message,
           variant: "destructive",
         });
         return;
       }
 
-      if (data) {
-        setMessages(
-          data.map((msg) => ({
+      // Fetch reactions for all messages
+      const { data: reactionsData, error: reactionsError } = await supabase
+        .from("reactions")
+        .select("*");
+
+      if (reactionsError) {
+        toast({
+          title: "Error fetching reactions",
+          description: reactionsError.message,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (messagesData) {
+        const processedMessages = messagesData.map((msg) => {
+          const messageReactions = reactionsData?.filter(r => r.message_id === msg.id) || [];
+          const reactionCounts = messageReactions.reduce((acc, reaction) => {
+            const type = reaction.type as "like" | "heart";
+            acc[type] = (acc[type] || 0) + 1;
+            return acc;
+          }, {} as Record<"like" | "heart", number>);
+
+          return {
             ...msg,
             text: msg.content,
             timestamp: new Date(msg.created_at),
-            reactions: [],
-          }))
-        );
+            reactions: [
+              ...(reactionCounts.like ? [{ type: "like" as const, count: reactionCounts.like }] : []),
+              ...(reactionCounts.heart ? [{ type: "heart" as const, count: reactionCounts.heart }] : [])
+            ],
+          };
+        });
+
+        setMessages(processedMessages);
       }
     };
 
@@ -83,25 +111,44 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
       .on(
         "postgres_changes",
         {
-          event: "INSERT",
+          event: "*",
           schema: "public",
           table: "messages",
         },
         (payload) => {
-          const newMsg = payload.new as any;
-          const newMessage: Message = {
-            ...newMsg,
-            text: newMsg.content,
-            timestamp: new Date(newMsg.created_at),
-            reactions: [],
-          };
-          setMessages((prev) => [...prev, newMessage]);
+          if (payload.eventType === "INSERT") {
+            const newMsg = payload.new as any;
+            const newMessage: Message = {
+              ...newMsg,
+              text: newMsg.content,
+              timestamp: new Date(newMsg.created_at),
+              reactions: [],
+            };
+            setMessages((prev) => [...prev, newMessage]);
+          }
+        }
+      )
+      .subscribe();
+
+    const reactionsChannel = supabase
+      .channel("public:reactions")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "reactions",
+        },
+        () => {
+          // Refresh messages to get updated reaction counts
+          fetchMessages();
         }
       )
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
+      supabase.removeChannel(reactionsChannel);
     };
   }, []);
 
@@ -126,7 +173,7 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
       })
       .subscribe(async (status) => {
         if (status === "SUBSCRIBED") {
-          await channel.track({ username: currentUser } as any);
+          await channel.track({ username: currentUser });
         }
       });
 
@@ -135,9 +182,57 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
     };
   }, [currentUser, userId]);
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  const fetchMessages = async () => {
+    const { data: messagesData, error: messagesError } = await supabase
+      .from("messages")
+      .select("*")
+      .order("created_at", { ascending: true });
+
+    if (messagesError) {
+      toast({
+        title: "Error fetching messages",
+        description: messagesError.message,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const { data: reactionsData, error: reactionsError } = await supabase
+      .from("reactions")
+      .select("*");
+
+    if (reactionsError) {
+      toast({
+        title: "Error fetching reactions",
+        description: reactionsError.message,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (messagesData) {
+      const processedMessages = messagesData.map((msg) => {
+        const messageReactions = reactionsData?.filter(r => r.message_id === msg.id) || [];
+        const reactionCounts = messageReactions.reduce((acc, reaction) => {
+          const type = reaction.type as "like" | "heart";
+          acc[type] = (acc[type] || 0) + 1;
+          return acc;
+        }, {} as Record<"like" | "heart", number>);
+
+        return {
+          ...msg,
+          text: msg.content,
+          timestamp: new Date(msg.created_at),
+          reactions: [
+            ...(reactionCounts.like ? [{ type: "like" as const, count: reactionCounts.like }] : []),
+            ...(reactionCounts.heart ? [{ type: "heart" as const, count: reactionCounts.heart }] : [])
+          ],
+        };
+      });
+
+      setMessages(processedMessages);
+    }
+  };
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -173,6 +268,7 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
     });
 
     if (error && error.code === '23505') {
+      // If reaction already exists, remove it
       const { error: deleteError } = await supabase
         .from("reactions")
         .delete()
@@ -207,16 +303,7 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
 
   return (
     <div className="flex h-screen bg-background">
-      <div className="fixed top-4 left-4 z-50 flex gap-2">
-        {isMobile && (
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={toggleSidebar}
-          >
-            <Menu className="h-6 w-6" />
-          </Button>
-        )}
+      <div className="fixed top-4 right-4 z-50">
         <Button
           variant="ghost"
           size="icon"
@@ -229,6 +316,18 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
           )}
         </Button>
       </div>
+
+      {isMobile && (
+        <div className="fixed top-4 left-4 z-50">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={toggleSidebar}
+          >
+            <Menu className="h-6 w-6" />
+          </Button>
+        </div>
+      )}
 
       <aside
         className={`${
