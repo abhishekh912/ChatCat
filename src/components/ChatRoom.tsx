@@ -110,6 +110,7 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
         : processedMessages;
 
       setMessages(filteredMessages);
+      setTimeout(scrollToBottom, 100);
     }
   };
 
@@ -155,8 +156,8 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
               timestamp: new Date(messageData.created_at),
               reactions: [],
             };
+
             setMessages((prev) => [...prev, newMessage]);
-            
             setTimeout(scrollToBottom, 100);
           }
         }
@@ -247,7 +248,6 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
 
     setNewMessage("");
     setReplyingTo(null);
-    
     setTimeout(scrollToBottom, 100);
   };
 
