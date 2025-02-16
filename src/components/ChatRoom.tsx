@@ -1,15 +1,13 @@
-
 import { useState, useRef, useEffect, KeyboardEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ChatMessage } from "./ChatMessage";
 import { UsersList } from "./UsersList";
-import { Send, Menu, Moon, Sun } from "lucide-react";
+import { Send, Menu } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { useTheme } from "next-themes";
 
 interface User {
   id: string;
@@ -48,7 +46,6 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
   const isMobile = useIsMobile();
-  const { theme, setTheme } = useTheme();
 
   const fetchMessages = async () => {
     let query = supabase
@@ -315,22 +312,6 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
 
   return (
     <div className="flex h-screen bg-background">
-      <div className="fixed top-4 right-4 z-50 flex gap-2">
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={() => setTheme(theme === "light" ? "dark" : "light")}
-          className="rounded-full"
-        >
-          {theme === "dark" ? (
-            <Sun className="h-[1.2rem] w-[1.2rem]" />
-          ) : (
-            <Moon className="h-[1.2rem] w-[1.2rem]" />
-          )}
-          <span className="sr-only">Toggle theme</span>
-        </Button>
-      </div>
-
       {isMobile && (
         <div className="fixed top-4 left-4 z-50">
           <Button
