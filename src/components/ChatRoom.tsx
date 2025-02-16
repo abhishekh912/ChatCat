@@ -1,3 +1,4 @@
+
 import { useState, useRef, useEffect, KeyboardEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -314,17 +315,19 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
 
   return (
     <div className="flex h-screen bg-background">
-      <div className="fixed top-4 right-4 z-50">
+      <div className="fixed top-4 right-4 z-50 flex gap-2">
         <Button
-          variant="ghost"
+          variant="outline"
           size="icon"
-          onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+          onClick={() => setTheme(theme === "light" ? "dark" : "light")}
+          className="rounded-full"
         >
           {theme === "dark" ? (
-            <Sun className="h-6 w-6" />
+            <Sun className="h-[1.2rem] w-[1.2rem]" />
           ) : (
-            <Moon className="h-6 w-6" />
+            <Moon className="h-[1.2rem] w-[1.2rem]" />
           )}
+          <span className="sr-only">Toggle theme</span>
         </Button>
       </div>
 
