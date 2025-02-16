@@ -44,6 +44,7 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
   const isMobile = useIsMobile();
   const { theme, setTheme } = useTheme();
@@ -112,12 +113,22 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
     }
   };
 
+  const scrollToBottom = () => {
+    if (scrollAreaRef.current) {
+      const scrollContainer = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
+      if (scrollContainer) {
+        scrollContainer.scrollTop = scrollContainer.scrollHeight;
+      }
+    }
+  };
+
   useEffect(() => {
     fetchMessages();
   }, [selectedUserId]);
 
   useEffect(() => {
-    const channel = supabase.channel("public:messages")
+    const channel = supabase
+      .channel("public:messages")
       .on(
         "postgres_changes",
         {
@@ -145,7 +156,8 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
               reactions: [],
             };
             setMessages((prev) => [...prev, newMessage]);
-            bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+            
+            setTimeout(scrollToBottom, 100);
           }
         }
       )
@@ -194,7 +206,7 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
       .subscribe(async (status) => {
         if (status === "SUBSCRIBED") {
           await channel.track({
-            username: currentUser,
+            username: currentUser
           });
         }
       });
@@ -235,6 +247,8 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
 
     setNewMessage("");
     setReplyingTo(null);
+    
+    setTimeout(scrollToBottom, 100);
   };
 
   const handleReact = async (messageId: string, type: "like" | "heart") => {
@@ -353,7 +367,7 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
             }
           </h2>
         </div>
-        <ScrollArea className="flex-1 p-4">
+        <ScrollArea ref={scrollAreaRef} className="flex-1 p-4">
           <div className="space-y-4">
             {messages.map((message) => (
               <ChatMessage
