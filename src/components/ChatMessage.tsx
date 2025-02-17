@@ -57,7 +57,7 @@ export function ChatMessage({
           className={cn(
             "rounded-lg px-4 py-2 shadow-sm",
             isCurrentUser
-              ? "bg-primary text-primary-foreground rounded-tr-none"
+              ? "bg-[#F5A524] text-black rounded-tr-none"
               : "bg-muted text-muted-foreground rounded-tl-none"
           )}
         >
