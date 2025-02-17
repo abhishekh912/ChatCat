@@ -54,7 +54,7 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
       .order("created_at", { ascending: true });
 
     if (selectedUserId) {
-      query = query.or(`user_id.eq.${selectedUserId},user_id.eq.${userId}`);
+      query = query.filter('user_id', 'in', [userId, selectedUserId]);
     }
 
     const { data: messagesData, error: messagesError } = await query;
@@ -128,8 +128,7 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
   }, [selectedUserId]);
 
   useEffect(() => {
-    const channel = supabase
-      .channel("public:messages")
+    const channel = supabase.channel("public:messages")
       .on(
         "postgres_changes",
         {
@@ -206,9 +205,11 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
       })
       .subscribe(async (status) => {
         if (status === "SUBSCRIBED") {
-          await channel.track({
+          const presenceData = {
             username: currentUser,
-          });
+            presence_ref: userId
+          } as const;
+          await channel.track(presenceData);
         }
       });
 
@@ -237,7 +238,7 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
 
     const { error } = await supabase
       .from("messages")
-      .insert(message);
+      .insert([message]);
 
     if (error) {
       console.error("Send message error:", error);
