@@ -27,9 +27,9 @@ export function UserRegistration({ onRegister }: UserRegistrationProps) {
     setIsLoading(true);
 
     try {
-      // Generate a random userId since we're not using authentication
-      const randomUserId = Math.random().toString(36).substring(2);
-      onRegister(username.trim(), randomUserId);
+      // Generate a proper UUID v4
+      const uuid = crypto.randomUUID();
+      onRegister(username.trim(), uuid);
     } catch (error) {
       toast({
         title: "Error",

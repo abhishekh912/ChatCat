@@ -205,11 +205,9 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
       })
       .subscribe(async (status) => {
         if (status === "SUBSCRIBED") {
-          const presenceData = {
+          await channel.track({
             username: currentUser,
-            presence_ref: userId
-          } as const;
-          await channel.track(presenceData);
+          });
         }
       });
 
