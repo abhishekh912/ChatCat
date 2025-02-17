@@ -54,7 +54,17 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
       .order("created_at", { ascending: true });
 
     if (selectedUserId) {
-      query = query.in('user_id', [userId, selectedUserId]);
+      if (isValidUUID(userId) && isValidUUID(selectedUserId)) {
+        query = query.in('user_id', [userId, selectedUserId]);
+      } else {
+        console.error("Invalid UUID format for user IDs");
+        toast({
+          title: "Error fetching messages",
+          description: "Invalid user ID format",
+          variant: "destructive",
+        });
+        return;
+      }
     }
 
     const { data: messagesData, error: messagesError } = await query;
@@ -196,9 +206,11 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
     channel
       .on("presence", { event: "sync" }, () => {
         const state = channel.presenceState();
-        const onlineUsers = Object.keys(state).map((id) => ({
+        const onlineUsers = Object.entries(state).map(([id, presenceState]) => ({
           id,
-          name: (state[id][0] as { username: string }).username,
+          name: Array.isArray(presenceState) && presenceState[0] 
+            ? (presenceState[0] as { username?: string }).username || "Anonymous"
+            : "Anonymous",
           online: true,
         }));
         setUsers(onlineUsers);
@@ -416,3 +428,8 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
     </div>
   );
 }
+
+const isValidUUID = (uuid: string) => {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(uuid);
+};
