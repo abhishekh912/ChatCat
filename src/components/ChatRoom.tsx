@@ -55,7 +55,7 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
 
     if (selectedUserId) {
       if (isValidUUID(userId) && isValidUUID(selectedUserId)) {
-        query = query.in('user_id', [userId, selectedUserId]);
+        query = query.or(`and(user_id.eq.${userId},recipient_id.eq.${selectedUserId}),and(user_id.eq.${selectedUserId},recipient_id.eq.${userId})`);
       } else {
         console.error("Invalid UUID format for user IDs");
         toast({
@@ -65,6 +65,8 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
         });
         return;
       }
+    } else {
+      query = query.is('recipient_id', null);
     }
 
     const { data: messagesData, error: messagesError } = await query;
@@ -244,6 +246,7 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
       user_id: userId,
       username: currentUser,
       reply_to: replyingTo?.id,
+      recipient_id: selectedUserId,
     };
 
     const { error } = await supabase
