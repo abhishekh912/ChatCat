@@ -347,12 +347,13 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
   };
 
   return (
-    <div className="flex h-screen bg-background">
+    <div className="flex h-screen bg-[#1A1F2C] text-white">
       {isMobile && (
         <div className="fixed top-4 left-4 z-50">
           <Button
             variant="ghost"
             size="icon"
+            className="text-white hover:bg-white/10"
             onClick={toggleSidebar}
           >
             <Menu className="h-6 w-6" />
@@ -363,24 +364,26 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
       <aside
         className={`${
           isMobile
-            ? `fixed inset-y-0 left-0 z-40 w-64 transform transition-transform duration-200 ease-in-out ${
+            ? `fixed inset-y-0 left-0 z-40 w-72 transform transition-transform duration-200 ease-in-out ${
                 showSidebar ? "translate-x-0" : "-translate-x-full"
               }`
-            : "w-64 border-r border-border"
-        } bg-background p-4`}
+            : "w-72"
+        } bg-[#1A1F2C] border-r border-white/10`}
       >
-        <UsersList 
-          users={users} 
-          currentUser={currentUser} 
-          onLeave={onLeave}
-          onUserSelect={setSelectedUserId}
-          selectedUserId={selectedUserId}
-        />
+        <div className="p-4 h-full">
+          <UsersList 
+            users={users} 
+            currentUser={currentUser} 
+            onLeave={onLeave}
+            onUserSelect={setSelectedUserId}
+            selectedUserId={selectedUserId}
+          />
+        </div>
       </aside>
 
-      <main className="flex-1 flex flex-col">
-        <div className="p-4 border-b border-border">
-          <h2 className="text-lg font-semibold">
+      <main className="flex-1 flex flex-col bg-[#1A1F2C]">
+        <div className="p-4 border-b border-white/10">
+          <h2 className="text-lg font-semibold text-white">
             {selectedUserId 
               ? `Chat with ${users.find(u => u.id === selectedUserId)?.name}`
               : "All Messages"
@@ -404,14 +407,15 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
         </ScrollArea>
         <form
           onSubmit={handleSend}
-          className="border-t border-border p-4 flex flex-col gap-2"
+          className="border-t border-white/10 p-4 flex flex-col gap-2"
         >
           {replyingTo && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <div className="flex items-center gap-2 text-sm text-white/60">
               <span>Replying to {replyingTo.username}</span>
               <Button
                 variant="ghost"
                 size="sm"
+                className="text-white/60 hover:text-white hover:bg-white/10"
                 onClick={() => setReplyingTo(null)}
               >
                 Cancel
@@ -430,9 +434,13 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
                   ? `Reply to ${replyingTo.username}...`
                   : "Type a message..."
               }
-              className="flex-1"
+              className="flex-1 bg-white/5 border-white/10 text-white placeholder:text-white/60"
             />
-            <Button type="submit" size="icon">
+            <Button 
+              type="submit" 
+              size="icon"
+              className="bg-[#9b87f5] hover:bg-[#8b77e5] text-white"
+            >
               <Send className="h-4 w-4" />
             </Button>
           </div>
@@ -441,7 +449,7 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
 
       {isMobile && showSidebar && (
         <div
-          className="fixed inset-0 bg-black bg-opacity-50 z-30"
+          className="fixed inset-0 bg-black/50 z-30"
           onClick={toggleSidebar}
         />
       )}
