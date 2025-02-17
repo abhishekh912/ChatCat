@@ -54,12 +54,13 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
       .order("created_at", { ascending: true });
 
     if (selectedUserId) {
-      query = query.or(`user_id.eq.${userId},user_id.eq.${selectedUserId}`);
+      query = query.or(`user_id.eq.${selectedUserId},user_id.eq.${userId}`);
     }
 
     const { data: messagesData, error: messagesError } = await query;
 
     if (messagesError) {
+      console.error("Messages error:", messagesError);
       toast({
         title: "Error fetching messages",
         description: messagesError.message,
@@ -73,6 +74,7 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
       .select("*");
 
     if (reactionsError) {
+      console.error("Reactions error:", reactionsError);
       toast({
         title: "Error fetching reactions",
         description: reactionsError.message,
@@ -205,7 +207,7 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
       .subscribe(async (status) => {
         if (status === "SUBSCRIBED") {
           await channel.track({
-            username: currentUser
+            username: currentUser,
           });
         }
       });
@@ -233,9 +235,12 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
       reply_to: replyingTo?.id,
     };
 
-    const { error } = await supabase.from("messages").insert(message);
+    const { error } = await supabase
+      .from("messages")
+      .insert(message);
 
     if (error) {
+      console.error("Send message error:", error);
       toast({
         title: "Error sending message",
         description: error.message,
