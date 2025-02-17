@@ -54,7 +54,7 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
       .order("created_at", { ascending: true });
 
     if (selectedUserId) {
-      query = query.filter('user_id', 'in', [userId, selectedUserId]);
+      query = query.in('user_id', [userId, selectedUserId]);
     }
 
     const { data: messagesData, error: messagesError } = await query;
