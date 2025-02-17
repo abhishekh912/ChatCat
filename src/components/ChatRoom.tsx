@@ -1,3 +1,4 @@
+
 import { useState, useRef, useEffect, KeyboardEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -55,7 +56,21 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
 
     if (selectedUserId) {
       if (isValidUUID(userId) && isValidUUID(selectedUserId)) {
-        query = query.or(`and(user_id.eq.${userId},recipient_id.eq.${selectedUserId}),and(user_id.eq.${selectedUserId},recipient_id.eq.${userId})`);
+        // Use .or() with object conditions instead of string template
+        query = query.or([
+          {
+            and: [
+              { user_id: userId },
+              { recipient_id: selectedUserId }
+            ]
+          },
+          {
+            and: [
+              { user_id: selectedUserId },
+              { recipient_id: userId }
+            ]
+          }
+        ]);
       } else {
         console.error("Invalid UUID format for user IDs");
         toast({
@@ -117,7 +132,9 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
 
       const filteredMessages = selectedUserId
         ? processedMessages.filter(
-            msg => msg.user_id === userId || msg.user_id === selectedUserId
+            msg => 
+              (msg.user_id === userId && msg.recipient_id === selectedUserId) ||
+              (msg.user_id === selectedUserId && msg.recipient_id === userId)
           )
         : processedMessages;
 
