@@ -434,7 +434,7 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
                   ? `Reply to ${replyingTo.username}...`
                   : "Type a message..."
               }
-              className="flex-1 bg-white/5 border-white/10 text-white placeholder:text-white/60"
+              className="flex-1 bg-[#0EA5E9]/10 border-[#0EA5E9]/20 text-white placeholder:text-white/60 focus-visible:ring-[#0EA5E9]/30"
             />
             <Button 
               type="submit" 
