@@ -290,9 +290,9 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
       .from("reactions")
       .select("*")
       .match({ message_id: messageId, user_id: userId, type })
-      .single();
+      .maybeSingle();
 
-    if (fetchError && fetchError.code !== "PGRST116") {
+    if (fetchError) {
       toast({
         title: "Error checking reaction",
         description: fetchError.message,
