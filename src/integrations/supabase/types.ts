@@ -14,6 +14,7 @@ export type Database = {
           content: string
           created_at: string | null
           id: string
+          recipient_id: string | null
           reply_to: string | null
           updated_at: string | null
           user_id: string
@@ -23,6 +24,7 @@ export type Database = {
           content: string
           created_at?: string | null
           id?: string
+          recipient_id?: string | null
           reply_to?: string | null
           updated_at?: string | null
           user_id: string
@@ -32,6 +34,7 @@ export type Database = {
           content?: string
           created_at?: string | null
           id?: string
+          recipient_id?: string | null
           reply_to?: string | null
           updated_at?: string | null
           user_id?: string
