@@ -55,31 +55,30 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
       .order("created_at", { ascending: true });
 
     if (selectedUserId) {
-      if (isValidUUID(userId) && isValidUUID(selectedUserId)) {
-        // Use .or() with object conditions instead of string template
-        query = query.or([
-          {
-            and: [
-              { user_id: userId },
-              { recipient_id: selectedUserId }
-            ]
-          },
-          {
-            and: [
-              { user_id: selectedUserId },
-              { recipient_id: userId }
-            ]
-          }
-        ]);
-      } else {
-        console.error("Invalid UUID format for user IDs");
+      // First validate UUIDs
+      if (!isValidUUID(userId)) {
+        console.error("Invalid sender UUID format:", userId);
         toast({
           title: "Error fetching messages",
-          description: "Invalid user ID format",
+          description: "Invalid sender ID format",
           variant: "destructive",
         });
         return;
       }
+      if (!isValidUUID(selectedUserId)) {
+        console.error("Invalid recipient UUID format:", selectedUserId);
+        toast({
+          title: "Error fetching messages",
+          description: "Invalid recipient ID format",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // If both UUIDs are valid, construct the query
+      query = query.or(
+        `user_id.eq.${userId},recipient_id.eq.${selectedUserId},or(user_id.eq.${selectedUserId},recipient_id.eq.${userId})`
+      );
     } else {
       query = query.is('recipient_id', null);
     }
@@ -130,6 +129,7 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
         };
       });
 
+      // Filter messages for private chats
       const filteredMessages = selectedUserId
         ? processedMessages.filter(
             msg => 
@@ -450,6 +450,8 @@ export function ChatRoom({ currentUser, userId, onLeave }: ChatRoomProps) {
 }
 
 const isValidUUID = (uuid: string) => {
+  if (!uuid) return false;
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   return uuidRegex.test(uuid);
 };
+
